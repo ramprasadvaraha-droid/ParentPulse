@@ -1,0 +1,460 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  WARDEN
+  ACCOUNTANT
+  PARENT
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum InstitutionStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum StudentStatus {
+  ACTIVE
+  ON_LEAVE
+  VACATED
+}
+
+enum StudentCurrentStatus {
+  INSIDE
+  OUTSIDE
+}
+
+enum GateDirection {
+  IN
+  OUT
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AlertLevel {
+  WARDEN_2H
+  PARENT_PRINCIPAL_4H
+}
+
+enum FeeStatus {
+  PENDING
+  PARTIAL
+  PAID
+  WAIVED
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+model Institution {
+  id            String            @id @default(uuid()) @db.Uuid
+  name          String
+  code          String            @unique
+  status        InstitutionStatus @default(ACTIVE)
+  timezone      String            @default("Asia/Kolkata")
+  country       String            @default("India")
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @updatedAt
+  settings      InstitutionSetting[]
+  users         User[]
+  subscriptions Subscription[]
+  blocks        Block[]
+  floors        Floor[]
+  rooms         Room[]
+  parents       Parent[]
+  students      Student[]
+  devices       Device[]
+  gate_logs     GateLog[]
+  leave_requests LeaveRequest[]
+  alerts        Alert[]
+  notifications NotificationLog[]
+  fee_dues      FeeDue[]
+  payment_entries PaymentEntry[]
+  receipts      Receipt[]
+  audit_logs    AuditLog[]
+
+  @@index([status])
+  @@map("institutions")
+}
+
+model SubscriptionPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String
+  monthly_price Decimal? @db.Decimal(10, 2)
+  features    Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id             String             @id @default(uuid()) @db.Uuid
+  institution_id String             @db.Uuid
+  plan_id        String             @db.Uuid
+  status         SubscriptionStatus @default(TRIAL)
+  starts_at      DateTime?
+  ends_at        DateTime?
+  mrr           Decimal?           @db.Decimal(10, 2)
+  created_at     DateTime           @default(now())
+  updated_at     DateTime           @updatedAt
+
+  institution    Institution        @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  plan           SubscriptionPlan   @relation(fields: [plan_id], references: [id], onDelete: Restrict)
+
+  @@index([institution_id])
+  @@index([status])
+  @@unique([institution_id, plan_id])
+  @@map("subscriptions")
+}
+
+model User {
+  id               String      @id @default(uuid()) @db.Uuid
+  institution_id   String      @db.Uuid
+  name             String
+  email            String
+  phone_number     String?
+  password_hash    String?
+  role             Role
+  status           UserStatus  @default(ACTIVE)
+  last_login_at    DateTime?
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+
+  institution      Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+
+  @@unique([institution_id, email])
+  @@index([institution_id, role])
+  @@map("users")
+}
+
+model Block {
+  id             String   @id @default(uuid()) @db.Uuid
+  institution_id String   @db.Uuid
+  name           String
+  description    String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  rooms          Room[]
+
+  @@index([institution_id])
+  @@map("blocks")
+}
+
+model Floor {
+  id             String   @id @default(uuid()) @db.Uuid
+  institution_id String   @db.Uuid
+  name           String
+  order_index    Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  rooms          Room[]
+
+  @@unique([institution_id, name])
+  @@unique([institution_id, order_index])
+  @@index([institution_id])
+  @@map("floors")
+}
+
+model Room {
+  id             String   @id @default(uuid()) @db.Uuid
+  institution_id String   @db.Uuid
+  block_id       String?  @db.Uuid
+  floor_id       String?  @db.Uuid
+  name           String
+  floor          Int?
+  total_beds     Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  block          Block?      @relation(fields: [block_id], references: [id], onDelete: Cascade)
+  floor_record   Floor?      @relation(fields: [floor_id], references: [id], onDelete: Restrict)
+  students       Student[]
+
+  @@unique([floor_id, name])
+  @@index([institution_id])
+  @@index([block_id])
+  @@index([floor_id])
+  @@map("rooms")
+}
+
+model Parent {
+  id               String   @id @default(uuid()) @db.Uuid
+  institution_id   String   @db.Uuid
+  name             String
+  whatsapp_number  String
+  alternate_whatsapp_number String?
+  whatsapp_reminders_opted_in Boolean @default(false)
+  whatsapp_alerts_opted_in Boolean @default(false)
+  email            String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  institution      Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  students         Student[]
+
+  @@unique([institution_id, whatsapp_number])
+  @@index([institution_id])
+  @@map("parents")
+}
+
+model Student {
+  id                String               @id @default(uuid()) @db.Uuid
+  institution_id    String               @db.Uuid
+  parent_id         String?              @db.Uuid
+  room_id          String?              @db.Uuid
+  bed_number       Int?
+  essl_id          String
+  name             String
+  gender           String?
+  joined_date      DateTime
+  status           StudentStatus        @default(ACTIVE)
+  current_status   StudentCurrentStatus @default(INSIDE)
+  status_since     DateTime             @default(now())
+  monthly_fee      Decimal              @db.Decimal(10, 2)
+  created_at       DateTime             @default(now())
+  updated_at       DateTime             @updatedAt
+
+  institution      Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  parent           Parent?     @relation(fields: [parent_id], references: [id], onDelete: SetNull)
+  room             Room?       @relation(fields: [room_id], references: [id], onDelete: SetNull)
+  alerts           Alert[]
+  leave_requests   LeaveRequest[]
+  gate_logs        GateLog[]
+  fee_dues         FeeDue[]
+
+  @@unique([institution_id, essl_id])
+  @@unique([room_id, bed_number])
+  @@index([institution_id, status])
+  @@index([institution_id, current_status])
+  @@map("students")
+}
+
+model Device {
+  id                 String    @id @default(uuid()) @db.Uuid
+  institution_id     String    @db.Uuid
+  serial             String
+  secret_hash        String
+  name               String?
+  last_heartbeat_at  DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  institution        Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  gate_logs          GateLog[]
+
+  @@unique([institution_id, serial])
+  @@index([institution_id, last_heartbeat_at])
+  @@map("devices")
+}
+
+model GateLog {
+  id              String        @id @default(uuid()) @db.Uuid
+  institution_id  String        @db.Uuid
+  device_id       String        @db.Uuid
+  student_id      String        @db.Uuid
+  essl_id         String
+  punch_time      DateTime
+  direction       GateDirection
+  is_authorized   Boolean       @default(false)
+  raw_payload     Json?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  institution     Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  device          Device      @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  student         Student     @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@unique([device_id, essl_id, punch_time])
+  @@index([institution_id, punch_time])
+  @@index([student_id, punch_time])
+  @@map("gate_logs")
+}
+
+model LeaveRequest {
+  id             String      @id @default(uuid()) @db.Uuid
+  institution_id String      @db.Uuid
+  student_id     String      @db.Uuid
+  start_date     DateTime
+  end_date       DateTime
+  reason         String
+  status         LeaveStatus @default(PENDING)
+  approved_by    String?     @db.Uuid
+  processed_at   DateTime?
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  student        Student     @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@index([institution_id, status])
+  @@index([student_id, start_date])
+  @@map("leave_requests")
+}
+
+model Alert {
+  id             String      @id @default(uuid()) @db.Uuid
+  institution_id String      @db.Uuid
+  student_id     String      @db.Uuid
+  level          AlertLevel
+  absence_key    String
+  sent_at        DateTime    @default(now())
+  acknowledged_by String?     @db.Uuid
+  resolved_at    DateTime?
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  student        Student     @relation(fields: [student_id], references: [id], onDelete: Cascade)
+
+  @@unique([student_id, absence_key, level])
+  @@index([institution_id, sent_at])
+  @@map("alerts")
+}
+
+model NotificationLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  institution_id String    @db.Uuid
+  channel        String
+  template_key   String
+  target_id      String?
+  status         String    @default("QUEUED")
+  provider_ref    String?
+  retries        Int       @default(0)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+
+  @@index([institution_id, created_at])
+  @@unique([institution_id, channel, template_key, target_id])
+  @@map("notification_log")
+}
+
+model InstitutionSetting {
+  id                 String    @id @default(uuid()) @db.Uuid
+  institution_id     String    @db.Uuid
+  key               String
+  value             Json
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  institution       Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+
+  @@unique([institution_id, key])
+  @@index([institution_id])
+  @@map("institution_settings")
+}
+
+model FeeDue {
+  id             String    @id @default(uuid()) @db.Uuid
+  institution_id String    @db.Uuid
+  student_id     String    @db.Uuid
+  month          Int
+  year           Int
+  amount_due     Decimal   @db.Decimal(10, 2)
+  due_date       DateTime
+  status         FeeStatus @default(PENDING)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  institution    Institution     @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  student        Student         @relation(fields: [student_id], references: [id], onDelete: Cascade)
+  payment_entries PaymentEntry[]
+
+  @@unique([student_id, month, year])
+  @@index([institution_id, status])
+  @@map("fee_dues")
+}
+
+model PaymentEntry {
+  id             String       @id @default(uuid()) @db.Uuid
+  institution_id String       @db.Uuid
+  due_id         String       @db.Uuid
+  amount         Decimal      @db.Decimal(10, 2)
+  mode           PaymentMode
+  reference_note String?
+  paid_on        DateTime
+  recorded_by    String       @db.Uuid
+  is_reversal    Boolean      @default(false)
+  reversal_of    String?      @db.Uuid
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+  due            FeeDue      @relation(fields: [due_id], references: [id], onDelete: Cascade)
+
+  @@index([institution_id, paid_on])
+  @@index([due_id, paid_on])
+  @@map("payment_entries")
+}
+
+model Receipt {
+  id             String    @id @default(uuid()) @db.Uuid
+  institution_id String    @db.Uuid
+  due_id         String?   @db.Uuid
+  receipt_number String    @unique
+  amount         Decimal   @db.Decimal(10, 2)
+  issued_at      DateTime  @default(now())
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+
+  @@index([institution_id, issued_at])
+  @@map("receipts")
+}
+
+model AuditLog {
+  id             String    @id @default(uuid()) @db.Uuid
+  institution_id String    @db.Uuid
+  user_id        String?   @db.Uuid
+  action         String
+  entity         String
+  entity_id      String?
+  metadata       Json?
+  created_at     DateTime  @default(now())
+
+  institution    Institution @relation(fields: [institution_id], references: [id], onDelete: Cascade)
+
+  @@index([institution_id, created_at])
+  @@index([entity, entity_id])
+  @@map("audit_log")
+}

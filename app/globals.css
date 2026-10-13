@@ -1,0 +1,89 @@
+@import "tailwindcss" source(none);
+@source "./";
+@source "../src";
+@source "../components";
+
+:root {
+  --background: #f3f6f1;
+  --foreground: #15251f;
+  --brand: #174d3b;
+  --brand-highlight: #287552;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01" on;
+  text-rendering: optimizeLegibility;
+}
+
+.portal-workspace {
+  background: linear-gradient(180deg, #e8f0e9 0, #f4f6f2 22rem, #f4f6f2 100%);
+}
+
+.portal-panel {
+  border: 1px solid #d5dfd7;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(27 54 40 / 5%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+:is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand-highlight) 72%, white);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #c4e2cf;
+  color: #123c2d;
+}
+
+@keyframes portal-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+main {
+  animation: portal-page-enter 320ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

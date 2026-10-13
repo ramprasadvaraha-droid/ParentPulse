@@ -1,0 +1,5 @@
+ALTER TABLE "parents"
+ADD COLUMN "whatsapp_alerts_opted_in" BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE "students"
+ADD COLUMN "status_since" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
